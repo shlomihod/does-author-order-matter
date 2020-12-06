@@ -14,6 +14,7 @@ from statsmodels.distributions.empirical_distribution import ECDF
 
 from src.latex_accents import AccentConverter
 from src.utils import (COMMUNITY2CONF, CONF2COMMUNITY, YEAR_RANGE, INTERESTS,
+                       FUTURE_YEAR,
                        clean_author_names, strip_accents,
                        standaraize_author_name, is_sorted, unify_author)
 
@@ -21,6 +22,10 @@ from src.utils import (COMMUNITY2CONF, CONF2COMMUNITY, YEAR_RANGE, INTERESTS,
 
 DBLP_MAX_HITS = 1000
 DBPL_CONF_JSON_URL = f'https://dblp.org/search/publ/api?q=toc%3Adb/conf/{{name}}/{{name}}{{year}}.bht%3A&h={DBLP_MAX_HITS}&f={{f}}&format=json'
+
+SCHOLARLY_AUTHOR_FIELDS = ['affiliation', 'citedby', 'citedby5y', 'cites_per_year', 'email',
+                 'hindex', 'hindex5y','i10index', 'i10index5y', 'id', 'interests', 'url_picture']
+
 
 logger = logging.getLogger(__name__)
 
@@ -255,3 +260,32 @@ def scrape_google_scholar(authors_df, sleep=1/3, interests=INTERESTS, with_tor_p
             
     finally:    
         return results
+
+
+def flatten_scholarly_result(info):
+    d = {'status': info['status']}
+    if info['status'] == 'success':
+        d.update({field: getattr(info['obj'], field)
+                            for field in SCHOLARLY_AUTHOR_FIELDS if hasattr(info['obj'], field)})
+    return d
+
+
+def enrich_author_df_with_scholarly(results, authors_df):
+
+    authors_info_d = {name: flatten_scholarly_result(info)
+               for name, info in results.items()}
+
+    authors_info_df = pd.DataFrame.from_dict(authors_info_d, orient='index')
+    success_mask = (authors_info_df['status'] == 'success') 
+    authors_info_df.loc[success_mask, ['citedby', 'citedby5y']] = authors_info_df.loc[success_mask, ['citedby', 'citedby5y']].fillna(0)
+    authors_info_df.loc[success_mask, 'scientific_age'] = (authors_info_df.loc[success_mask, 'cites_per_year']
+                                                         .apply(lambda r: FUTURE_YEAR - min(r.keys()) if r else 0) + 1)
+
+    authors_info_df.loc[success_mask, 'annual_productivity'] = (authors_info_df.loc[success_mask, 'citedby']
+                                                               / authors_info_df.loc[success_mask, 'scientific_age'])
+    authors_info_df.loc[success_mask, 'annual_productivity'] = (authors_info_df.loc[success_mask, 'annual_productivity']
+                                                               .fillna(0))
+    assert set(authors_info_df.index).issubset(set(authors_df.index))
+    
+    return pd.merge(authors_df, authors_info_df, how='left', left_index=True, right_index=True)
+    

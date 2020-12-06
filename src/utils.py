@@ -18,6 +18,7 @@ INTERESTS = ['coding', 'algorithm', 'combinatorics', 'program', 'software', 'ver
              'database', 'data mining', 'optimization', 'network', 'distributed', 'security', 'crypto', 'cyber',
              'machine learning', 'comput', 'complexity', 'artificial', 'intelegence', 'deep learning']
 
+FUTURE_YEAR = 2021
 
 def clean_author_names(name):
     name = name.replace('&apos;', '\'')
