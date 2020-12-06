@@ -8,11 +8,10 @@ from collections import defaultdict, Counter
 import requests
 import numpy as np
 import pandas as pd
-from tqdm.notebook import tqdm 
+from tqdm.notebook import tqdm
 from scholarly import scholarly, ProxyGenerator
 from statsmodels.distributions.empirical_distribution import ECDF
 
-from src.latex_accents import AccentConverter
 from src.utils import (COMMUNITY2CONF, CONF2COMMUNITY, YEAR_RANGE, INTERESTS,
                        FUTURE_YEAR,
                        clean_author_names, strip_accents,
@@ -35,18 +34,18 @@ def scrap_dblp_conf_json(name, year):
     papers = []
     next_first = 0
     data = []
-    
+
     while not next_first or next_first == DBLP_MAX_HITS:
         url = DBPL_CONF_JSON_URL.format(name=name, year=year, f=next_first)
         r = requests.get(url)
         data = json.loads(r.text)
-        
+
         hits = data['result']['hits']['hit']
         for hit in hits:
             papers.append(hit['info'])
 
         next_first = len(hits)
-    
+
     return papers
 
 
@@ -58,7 +57,7 @@ def extract_authors(authors_dblp):
 
 
 def retrive_conf_papers(name, year):
-    
+
     papers = scrap_dblp_conf_json(name, year)
 
     df = pd.DataFrame(papers)
@@ -92,7 +91,7 @@ def build_papers_df(conf2community, year_range):
                            for conf in tqdm(conf2community)
                            for year in year_range],
                          ignore_index=True)
-    
+
     return papers_df
 
 
@@ -103,12 +102,12 @@ def make_paper_dataset(path=None, conf2community=CONF2COMMUNITY, year_range=YEAR
                                                          year_range[0], year_range[-1])
         if json_path.exists():
             return pd.read_json(json_path)
-        
+
     papers_df = build_papers_df(conf2community, year_range)
-    
+
     if json_path is not None:
         papers_df.to_json(json_path)
-    
+
     return papers_df
 
 
@@ -131,7 +130,7 @@ def identiy_major_community(community_ratio, threshold=1.5):
     else:
         return 'BOTH'
 
-    
+
 def get_coauthors_letters(row):
     return [a[0][0]
             for ca in row['stand_coauthors']
@@ -153,7 +152,7 @@ def build_authors_df(papers_df):
 
     authors_df['community_ratio'] = authors_df.apply(lambda r: community_ratio(r), axis=1)
     authors_df['major_community'] = authors_df['community_ratio'].apply(lambda r: identiy_major_community(r))
-    
+
     authors_df['multi'] = authors_df.index.map(lambda name: '0' in name)
 
     authors_df['real_name'] = authors_df.index.map(lambda name: name
@@ -176,8 +175,8 @@ def build_authors_df(papers_df):
 
 
     ########################################################
-    
-    
+
+
     coauthors = defaultdict(lambda: defaultdict(list))
 
     for _, paper in papers_df.iterrows():
@@ -209,9 +208,9 @@ def build_authors_df(papers_df):
     (authors_df['first_prop'],
      authors_df['last_prop']) = (authors_df['positions'].apply(lambda pos: np.mean([ind == 0 for ind, _ in pos])),
                                 authors_df['positions'].apply(lambda pos: np.mean([ind == (n_au-1) for ind, n_au in pos])))
-    
+
     ########################################################
-   
+
     authors_df['letter'] = authors_df['stand_name'].str[0]
     authors_df['letter_int'] = authors_df['letter'].apply(string.ascii_uppercase.index)
     letter_ecdf = ECDF(authors_df['letter_int'])
@@ -229,7 +228,7 @@ def scrape_google_scholar(authors_df, sleep=1/3, interests=INTERESTS, with_tor_p
         print('Using Tor!')
 
     results = {}
-    
+
     try:
         author = None  # UGLY HACK!!!
 
@@ -257,8 +256,8 @@ def scrape_google_scholar(authors_df, sleep=1/3, interests=INTERESTS, with_tor_p
             time.sleep(sleep)
     except Exception as e:
         print(e)
-            
-    finally:    
+
+    finally:
         return results
 
 
@@ -276,7 +275,7 @@ def enrich_author_df_with_scholarly(results, authors_df):
                for name, info in results.items()}
 
     authors_info_df = pd.DataFrame.from_dict(authors_info_d, orient='index')
-    success_mask = (authors_info_df['status'] == 'success') 
+    success_mask = (authors_info_df['status'] == 'success')
     authors_info_df.loc[success_mask, ['citedby', 'citedby5y']] = authors_info_df.loc[success_mask, ['citedby', 'citedby5y']].fillna(0)
     authors_info_df.loc[success_mask, 'scientific_age'] = (authors_info_df.loc[success_mask, 'cites_per_year']
                                                          .apply(lambda r: FUTURE_YEAR - min(r.keys()) if r else 0) + 1)
@@ -286,6 +285,6 @@ def enrich_author_df_with_scholarly(results, authors_df):
     authors_info_df.loc[success_mask, 'annual_productivity'] = (authors_info_df.loc[success_mask, 'annual_productivity']
                                                                .fillna(0))
     assert set(authors_info_df.index).issubset(set(authors_df.index))
-    
+
     return pd.merge(authors_df, authors_info_df, how='left', left_index=True, right_index=True)
-    
+
