@@ -206,8 +206,10 @@ def build_authors_df(papers_df):
                           axis=1)
 
     (authors_df['first_prop'],
-     authors_df['last_prop']) = (authors_df['positions'].apply(lambda pos: np.mean([ind == 0 for ind, _ in pos])),
-                                authors_df['positions'].apply(lambda pos: np.mean([ind == (n_au-1) for ind, n_au in pos])))
+     authors_df['last_prop'],
+     authors_df['real_last_prop']) = (authors_df['positions'].apply(lambda pos: np.mean([ind == 0 for ind, _ in pos])),
+                                      authors_df['positions'].apply(lambda pos: np.mean([ind == (n_au-1) for ind, n_au in pos])),
+                                      authors_df['positions'].apply(lambda pos: np.mean([ind == (n_au-1) for ind, n_au in pos if n_au > 1])))
 
     ########################################################
 
