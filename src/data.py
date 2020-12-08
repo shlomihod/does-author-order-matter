@@ -83,6 +83,9 @@ def retrive_conf_papers(name, year):
     df['conf'] = name.upper()
     df['community'] = df['conf'].apply(lambda r: CONF2COMMUNITY[r])
 
+    df['author_letter_int'] = df['stand_authors'].apply(lambda r: [string.ascii_uppercase.index(a[0]) for a in r])
+    df['avg_author_letter_int'] = df['author_letter_int'].apply(np.mean)
+    
     return df
 
 
